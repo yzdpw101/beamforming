@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "amplitude.schema.json",
+  "title": "幅度配置 — 三态多态",
+  "description": "optimize=优化, default=全1不优化, 路径=从文件导入amplitudes",
+  "oneOf": [
+    {
+      "title": "优化幅度",
+      "description": "CMA-ES 优化幅度加权 (dB衰减, 步进量化模拟数字衰减器)",
+      "properties": {
+        "source": { "const": "optimize", "default": "optimize" },
+        "bounds": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" }, "default": [0, 20] },
+        "optimizeHalf": { "type": "boolean", "default": false },
+        "step": { "type": ["number", "null"], "default": 0.5 },
+        "inDB": { "type": "boolean", "default": true }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    {
+      "title": "默认幅度",
+      "description": "全1均匀激励, 不参与优化",
+      "properties": {
+        "source": { "const": "default" }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    {
+      "title": "导入幅度",
+      "description": "从 JSON 文件导入固定幅度 (amplitudes 字段)",
+      "properties": {
+        "source": { "type": "string", "minLength": 1, "not": { "enum": ["optimize", "default"] } }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    }
+  ]
+}

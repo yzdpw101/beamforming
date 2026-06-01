@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase.schema.json",
+  "title": "相位配置 — 三态多态",
+  "description": "optimize=优化, default=全0不优化, 路径=从文件导入phases",
+  "oneOf": [
+    {
+      "title": "优化相位",
+      "description": "CMA-ES 优化相位 (步进量化模拟数字移相器, 如 5.625°=5-bit)",
+      "properties": {
+        "source": { "const": "optimize", "default": "optimize" },
+        "optimizeHalf": { "type": "boolean", "default": false },
+        "step": { "type": ["number", "null"], "default": 5.625, "description": "量化步进 (度), null=连续相位" }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    {
+      "title": "默认相位",
+      "description": "全0同相激励, 不参与优化",
+      "properties": {
+        "source": { "const": "default" }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    },
+    {
+      "title": "导入相位",
+      "description": "从 JSON 文件导入固定相位 (phases 字段, 单位: 度)",
+      "properties": {
+        "source": { "type": "string", "minLength": 1, "not": { "enum": ["optimize", "default"] } }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "position.schema.json",
+  "title": "位置配置 — 四态多态",
+  "description": "source=\"optimize\"→优化(Stick-Breaking); source=\"uniform\"→均匀固定; source=路径→导入文件",
+  "oneOf": [
+    {
+      "title": "优化位置",
+      "description": "CMA-ES 优化阵元位置 (Stick-Breaking)",
+      "properties": {
+        "source": { "const": "optimize", "default": "optimize" },
+        "symmetric": { "type": "boolean", "default": false },
+        "fixedAperture": { "type": "boolean", "default": true },
+        "Ne": { "type": "integer", "minimum": 2, "default": 16 },
+        "L_wavelength": { "type": "number", "exclusiveMinimum": 0, "default": 15.5 },
+        "dmin_wavelength": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 }
+      },
+      "required": ["Ne", "L_wavelength", "dmin_wavelength"],
+      "additionalProperties": false
+    },
+    {
+      "title": "均匀固定位置",
+      "description": "均匀间距固定位置，不优化；需 Ne, dmin, Unit",
+      "properties": {
+        "source": { "const": "uniform" },
+        "symmetric": { "type": "boolean", "default": true },
+        "fixedAperture": { "type": "boolean", "default": true },
+        "Ne": { "type": "integer", "minimum": 2, "default": 16 },
+        "dmin": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 },
+        "Unit": { "type": "string", "enum": ["m", "mm", "lam"], "default": "lam" }
+      },
+      "required": ["Ne", "dmin", "Unit"],
+      "additionalProperties": false
+    },
+    {
+      "title": "导入位置",
+      "description": "从 JSON 文件导入固定位置 (xCenters); 间距/对称性由文件自动推断",
+      "properties": {
+        "source": { "type": "string", "minLength": 1, "not": { "enum": ["optimize", "uniform"] } },
+        "symmetric": { "type": "boolean", "default": false },
+        "fixedAperture": { "type": "boolean", "default": false }
+      },
+      "required": ["source"],
+      "additionalProperties": false
+    }
+  ]
+}

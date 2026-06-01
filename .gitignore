@@ -1,0 +1,35 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+*.spec
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+.tox/
+.nox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project-local tool state
+.omo/
+.codewhale/
+
+# Results (runtime output)
+results/
+input/
+
+# OS
+.DS_Store
+Thumbs.db

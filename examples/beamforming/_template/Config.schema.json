@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Config.schema.json",
+  "title": "阵列天线波束成形优化配置",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "frequenciesGHz": {
+      "type": "array", "minItems": 1,
+      "items": { "type": "number", "exclusiveMinimum": 0 },
+      "description": "工作频率列表 (GHz)"
+    },
+    "randomSeed": {
+      "type": ["integer", "null"], "description": "随机种子, null=自动生成"
+    },
+    "aspectAngle": {
+      "type": "object",
+      "properties": {
+        "thetaDeg": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "[start, end, step] 度"
+        },
+        "theta0sDeg": {
+          "type": "array", "minItems": 1,
+          "items": { "type": "number" },
+          "description": "波束指向角列表 (度)"
+        }
+      },
+      "required": ["thetaDeg", "theta0sDeg"],
+      "additionalProperties": false
+    },
+    "position": { "$ref": "schemas/position.schema.json" },
+    "amplitude": { "$ref": "schemas/amplitude.schema.json" },
+    "phase": { "$ref": "schemas/phase.schema.json" },
+    "target": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "object",
+          "properties": {
+            "main_lobe_pointing": {
+              "type": "object",
+              "properties": { "weight": { "type": "number", "minimum": 0, "default": 0.5 } },
+              "additionalProperties": false
+            },
+            "sidelobe": {
+              "type": "object",
+              "properties": {
+                "weight": { "type": "number", "minimum": 0, "default": 1.0 },
+                "targetDb": { "type": "number", "default": -30 },
+                "mainlobeNullWidthDeg": { "type": ["number", "null"], "default": null }
+              },
+              "additionalProperties": false
+            },
+            "null_steering": {
+              "type": "object",
+              "properties": {
+                "weight": { "type": "number", "minimum": 0, "default": 2.0 },
+                "anglesDeg": { "type": "array", "items": { "type": "number" } },
+                "targetDb": { "type": "number", "default": -50 },
+                "windowHalfDeg": { "type": "array", "items": { "type": "number" } }
+              },
+              "additionalProperties": false
+            },
+            "directivity": {
+              "type": "object",
+              "properties": {
+                "weight": { "type": "number", "minimum": 0, "default": 0.2 },
+                "targetDbi": { "type": "number", "default": 10 }
+              },
+              "additionalProperties": false
+            },
+            "hpbw": {
+              "type": "object",
+              "properties": {
+                "weight": { "type": "number", "minimum": 0, "default": 0.3 },
+                "targetDeg": { "type": "number", "default": 25 }
+              },
+              "additionalProperties": false
+            },
+            "difference_beam": {
+              "type": "object",
+              "properties": {
+                "weight": { "type": "number", "minimum": 0, "default": 0.0 },
+                "nullTargetDb": { "type": "number", "default": -60 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ePattern": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "csvDirectory": { "type": "string" },
+        "thetaDeg": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": { "type": "number" }
+        },
+        "isGain": { "type": "boolean" },
+        "inDB": { "type": "boolean" },
+        "aepMode": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "importInitIndividual": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": [{ "type": "boolean" }, { "type": "string" }]
+    },
+    "optimizer": {
+      "type": "object",
+      "properties": {
+        "method": { "enum": ["cma", "de", "gwo"] },
+        "sigma": { "type": "number", "exclusiveMinimum": 0 },
+        "pop_size": { "type": ["integer", "null"] },
+        "max_iter": { "type": "integer", "minimum": 1 },
+        "n_jobs": { "type": "integer" },
+        "verbose": { "type": "boolean" },
+        "resume": { "type": ["boolean", "string"] },
+        "stopFitness": { "type": ["number", "null"] },
+        "importInitIndividual": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": [{ "type": "boolean" }, { "type": "string" }]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["frequenciesGHz", "aspectAngle", "position", "amplitude", "phase", "optimizer"],
+  "additionalProperties": false
+}

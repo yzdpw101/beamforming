@@ -1,0 +1,62 @@
+{
+  "$schema": "../_template/Config.schema.json",
+  "frequenciesGHz": [11.4],
+  "randomSeed": null,
+  "aspectAngle": {
+    "thetaDeg": [-70, 70, 0.05],
+    "theta0sDeg": [0]
+  },
+  "position": {
+    "source": "optimize",
+    "symmetric": false,
+    "fixedAperture": true,
+    "Ne": 17,
+    "L_wavelength": 9.875,
+    "dmin_wavelength": 0.3
+  },
+  "amplitude": {
+    "source": "optimize",
+    "bounds": [0, 20],
+    "optimizeHalf": false,
+    "step": 0.5,
+    "inDB": true
+  },
+  "phase": {
+    "source": "optimize",
+    "optimizeHalf": false,
+    "step": 5.625
+  },
+  "target": {
+    "components": {
+      "main_lobe_pointing": { "weight": 20 },
+      "sidelobe": {
+        "weight": 1.0,
+        "targetDb": -25,
+        "mainlobeNullWidthDeg": 10
+      },
+      "null_steering": {
+        "weight": 2.0,
+        "anglesDeg": [30],
+        "targetDb": -50,
+        "windowHalfDeg": [2.5]
+      }
+    }
+  },
+  "ePattern": {
+    "enabled": true,
+    "csvDirectory": "E:\\Projects\\Opencode\\beamforming2\\input\\element_pattern\\kty\\phi90",
+    "thetaDeg": [-90, 90],
+    "isGain": true,
+    "inDB": true,
+    "aepMode": false
+  },
+  "optimizer": {
+    "method": "cma",
+    "sigma": 0.5,
+    "pop_size": 200,
+    "max_iter": 300,
+    "n_jobs": -1,
+    "verbose": true,
+    "importInitIndividual": [false, ""]
+  }
+}

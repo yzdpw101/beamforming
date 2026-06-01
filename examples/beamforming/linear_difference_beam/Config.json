@@ -1,0 +1,46 @@
+{
+  "$schema": "../_template/Config.schema.json",
+  "frequenciesGHz": [10.6],
+  "randomSeed": null,
+  "aspectAngle": {
+    "thetaDeg": [-70, 70, 0.1],
+    "theta0sDeg": [0]
+  },
+  "position": {
+    "source": "E:\\Documents\\南理工\\研二下\\beamforming\\input\\array_config\\uniform_8_32mm.json"
+  },
+  "amplitude": {
+    "source": "optimize",
+    "bounds": [0, 20],
+    "optimizeHalf": true,
+    "step": 0.5,
+    "inDB": true
+  },
+  "phase": {
+    "source": "optimize",
+    "optimizeHalf": true,
+    "step": 5.625
+  },
+  "target": {
+    "components": {
+      "difference_beam": {"nullTargetDb": -60, "weight": 3}
+    }
+  },
+  "ePattern": {
+    "enabled": true,
+    "csvDirectory": "E:\\Projects\\Opencode\\beamforming2\\input\\element_pattern\\kty\\phi90",
+    "thetaDeg": [-90, 90],
+    "isGain": true,
+    "inDB": true,
+    "aepMode": false
+  },
+  "optimizer": {
+    "method": "cma",
+    "sigma": 0.5,
+    "pop_size": null,
+    "max_iter": 300,
+    "n_jobs": -1,
+    "verbose": true,
+    "importInitIndividual": [false, ""]
+  }
+}
