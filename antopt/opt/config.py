@@ -74,6 +74,7 @@ class BaseConfig:
     opt_stop_fitness: float = None
     opt_import_init_individual: bool = False
     opt_init_individual_dir: str = ""
+    opt_af_method: str = "auto"   # "auto" | "direct" | "nufft"
 
     # 目标
     target_type: str = "sidelobe"
@@ -162,6 +163,7 @@ class BaseConfig:
             opt_stop_fitness=opt.get("stopFitness"),
             opt_import_init_individual=opt.get("importInitIndividual", [False, ""])[0],
             opt_init_individual_dir=opt.get("importInitIndividual", [False, ""])[1],
+            opt_af_method=opt.get("afMethod", "auto"),
             target_type=tgt.get("type", "sidelobe"),
             target_psll=tgt.get("targetPSLL"),
             target_hpbw=tgt.get("targetHPBW"),

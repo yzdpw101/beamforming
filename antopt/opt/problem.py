@@ -186,12 +186,14 @@ class BeamformingProblem:
         element_patterns: Optional[list] = None,
         is_default_excitation: bool = False,
         theta0_default: float = 0.0,
+        af_method: str = "auto",
     ):
         self.mapper = mapper
         self.pattern = pattern
         self.element_patterns = element_patterns
         self.components = components  # {name: (fn, weight, params)}
         self.is_default_excitation = is_default_excitation
+        self.af_method = af_method
         self.theta0_default = theta0_default
 
         self.amplitude_lower, self.amplitude_upper = amplitude_bounds
@@ -324,7 +326,8 @@ class BeamformingProblem:
             af = self.pattern.linear_af_symmetric(pos[halfNe + offset:], **kwargs)
         else:
             af = self.pattern.af(pos, amplitudes=amps, phases=phases,
-                                 is_default_excitation=self.is_default_excitation)
+                                 is_default_excitation=self.is_default_excitation,
+                                 method=self.af_method)
 
         # EP 合成
         if self.element_patterns is not None:

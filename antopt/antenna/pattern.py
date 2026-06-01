@@ -178,6 +178,91 @@ class Pattern:
     #  统一 AF 入口
     # ============================================================
 
+    def af_nufft(
+        self,
+        wl_x: np.ndarray,
+        wl_y: Optional[np.ndarray] = None,
+        amplitudes: Optional[np.ndarray] = None,
+        phases: Optional[np.ndarray] = None,
+        is_default_excitation: bool = False,
+        eps: float = 1e-6,
+    ) -> np.ndarray:
+        """NUFFT 快速阵因子 — 统一线阵/面阵，多频多角度自适应。
+
+        小阵列 (<300元) 自动回落直接计算。
+        """
+        if not _nufft_available():
+            return self.af(wl_x, wl_y, amplitudes, phases, is_default_excitation)
+
+        if is_default_excitation:
+            amplitudes = None; phases = None
+
+        x = np.asarray(wl_x, dtype=float)
+        n = len(x)
+        has_amps = amplitudes is not None
+        has_phs = phases is not None
+        if has_amps:
+            amps = np.asarray(amplitudes, dtype=float)
+        if has_phs:
+            exc = np.exp(1j * np.asarray(phases, dtype=float))
+            if has_amps:
+                exc = amps * exc
+        w = np.ones(n, dtype=complex)
+        if has_phs:
+            w = exc.astype(complex)
+        elif has_amps:
+            w = amps.astype(complex)
+
+        # 小阵列走直接计算
+        if n < 300:
+            if self._array_type == "linear":
+                return self.linear_af(x, amplitudes, phases)
+            return self.planar_af(x, wl_y, amplitudes, phases)
+
+        if self._array_type == "linear":
+            return self._af_nufft_core(x, None, w, eps)
+        if wl_y is None:
+            raise ValueError("平面阵必须提供 wl_y")
+        return self._af_nufft_core(x, np.asarray(wl_y, dtype=float), w, eps)
+
+    def _af_nufft_core(self, x, y, w, eps):
+        """NUFFT 多频多角度循环。"""
+        is_1d = (y is None)
+
+        if is_1d:
+            delta = self._delta_sin
+            fn = _nufft_1d
+            args = (x,)
+        else:
+            delta = (self._delta_u, self._delta_v)
+            fn = _nufft_2d
+            args = (x, y)
+
+        if self._n_freq == 1 and self._n_scan == 1:
+            if is_1d:
+                return fn(*args, w, delta, TWO_PI, eps)
+            return fn(*args, w, delta[0], delta[1], TWO_PI, eps)
+
+        # 多扫描角 or 多频
+        afs = []
+        for fi, k in enumerate(self._ks):
+            for si in range(self._n_scan):
+                if is_1d:
+                    d = delta if self._n_scan == 1 else delta[si]
+                    afs.append(fn(*args, w, d, k, eps))
+                else:
+                    du = delta[0] if self._n_scan == 1 else delta[0][si]
+                    dv = delta[1] if self._n_scan == 1 else delta[1][si]
+                    afs.append(fn(*args, w, du, dv, k, eps))
+        af_arr = np.array(afs)
+        if self._n_freq > 1 and self._n_scan > 1:
+            return af_arr.reshape(self._n_freq, self._n_scan, *af_arr.shape[1:])
+        return af_arr
+
+    # ============================================================
+    #  统一 AF 入口
+    # ============================================================
+
     def af(
         self,
         wl_x: np.ndarray,
@@ -185,6 +270,7 @@ class Pattern:
         amplitudes: Optional[np.ndarray] = None,
         phases: Optional[np.ndarray] = None,
         is_default_excitation: bool = False,
+        method: str = "auto",
     ) -> np.ndarray:
         """统一阵因子入口，根据 array_type 自动分派。
 
@@ -193,12 +279,16 @@ class Pattern:
             wl_y: 阵元 y 坐标（波长单位），仅 array_type="planar" 时需要
             amplitudes: 激励幅度，shape (N,)，默认全 1
             phases: 激励相位（弧度），shape (N,)，默认全 0
-            is_default_excitation: True 时跳过幅相乘法，走纯位置快速路径。
-                                   由 scenario.py 预检测后传入。
+            is_default_excitation: True 时跳过幅相乘法
+            method: "auto"=自动选, "direct"=直接计算, "nufft"=强制NUFFT
 
         Returns:
             复数阵因子
         """
+        if method == "nufft" or (method == "auto" and _nufft_available()):
+            return self.af_nufft(wl_x, wl_y, amplitudes, phases,
+                                 is_default_excitation)
+
         if is_default_excitation:
             amplitudes = None
             phases = None
@@ -759,6 +849,42 @@ def _planar_af_chunked(
             else:
                 af[t0:t1] += _planar_af_vec(xe, ye, we, dc_u, dc_v, k)
     return af
+
+
+# ═══════════════════════════════════════════════════
+#  NUFFT 快速阵因子（可选依赖 finufft）
+# ═══════════════════════════════════════════════════
+
+def _nufft_available():
+    try:
+        import finufft
+        return True
+    except ImportError:
+        return False
+
+
+def _nufft_1d(x, w, delta_sin, k, eps=1e-6):
+    """1D NUFFT Type3 — 单扫描角（delta_sin shape (Nθ,)）。"""
+    import finufft as fu
+    L = np.max(np.abs(x))
+    if L < 1e-12:
+        L = 1.0
+    xs = x * (np.pi / L)
+    ss = (2.0 * L / TWO_PI) * k * delta_sin.ravel()
+    return fu.nufft1d3(xs, w, ss, eps=eps, isign=1)
+
+
+def _nufft_2d(x, y, w, delta_u, delta_v, k, eps=1e-6):
+    """2D NUFFT Type3 — 单扫描角（du/dv shape (Nθ, Nφ)）。"""
+    import finufft as fu
+    L = max(np.max(np.abs(x)), np.max(np.abs(y)))
+    if L < 1e-12:
+        L = 1.0
+    xs, ys = x * (np.pi / L), y * (np.pi / L)
+    ss = (2.0 * L / TWO_PI) * k * delta_u.ravel()
+    ts = (2.0 * L / TWO_PI) * k * delta_v.ravel()
+    af = fu.nufft2d3(xs, ys, w, ss, ts, eps=eps, isign=1)
+    return af.reshape(delta_u.shape)
 
 
 def _planar_af_vec(x, y, w, du, dv, k):

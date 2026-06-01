@@ -257,6 +257,7 @@ def assemble_scenario(cfg: BeamformingConfig) -> tuple:
         element_patterns=element_patterns,
         is_default_excitation=is_default_excitation,
         theta0_default=cfg.theta0s[0] if cfg.theta0s else 0.0,
+        af_method=cfg.opt_af_method,
     )
 
     # ── 10. 构建变量 bounds ──

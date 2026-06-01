@@ -126,7 +126,8 @@
         "importInitIndividual": {
           "type": "array", "minItems": 2, "maxItems": 2,
           "items": [{ "type": "boolean" }, { "type": "string" }]
-        }
+        },
+        "afMethod": { "enum": ["auto", "direct", "nufft"] }
       },
       "additionalProperties": false
     }

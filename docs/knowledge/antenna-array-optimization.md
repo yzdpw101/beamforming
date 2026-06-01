@@ -431,3 +431,46 @@ arr = load_elements(result_dir)  # → np.ndarray (N, 4)
 ### 9.7 fitness 退出条件
 
 组件模式下 `stopFitness = 0.0` — 所有激活的代价组件归零即为完美解。代价函数必须设计为恒 ≥0 的形式。
+
+### 9.8 阵因子快速计算（FINUFFT）
+
+#### 数学原理
+
+阵列因子本质上是一个二维非均匀离散傅里叶变换（NDFT）：
+
+$$AF(u,v) = \sum_{n=0}^{N-1} A_n \cdot e^{j \cdot 2\pi \cdot (x_n \cdot u + y_n \cdot v)}$$
+
+其中 $u = \sin\theta \cdot \cos\phi$，$v = \sin\theta \cdot \sin\phi$，$x_n, y_n$ 以波长 $\lambda_0$ 为单位。
+
+此公式对任意阵型（线/面、均匀/非均匀）完全统一。线阵退化为 $y_n = 0, v = 0$ 的特例。
+
+#### NUFFT Type 3 加速
+
+使用 [FINUFFT](https://github.com/flatironinstitute/finufft)（`pip install finufft`）的 Type 3 变换：
+
+- **复杂度**：$O(N + N_{target} \cdot \log N_{target})$，vs 直接求和 $O(N \cdot N_\theta \cdot N_\phi)$
+- **精度**：$\varepsilon = 10^{-6}$，实测误差 < **0.001 dB**，PSLL 差异 **0.000 dB**
+- **加速比**：线阵 7-28×，面阵 20-2700×，多种群模拟 39-448×
+
+#### 关键公式（Type 3 坐标缩放）
+
+```python
+L = max(|x|, |y|)                        # 公共归一化系数
+xs, ys = x * (π / L), y * (π / L)        # 源坐标 → [-π, π]
+s = (2L / 2π) * k * δu                   # 目标坐标
+t = (2L / 2π) * k * δv
+af = finufft.nufft2d3(xs, ys, w, s, t, eps=1e-6, isign=1)
+```
+
+推导：将 $AF = \sum w_n \cdot \exp(j \cdot k \cdot (x_n \cdot \delta u + y_n \cdot \delta v))$ 代入 FINUFFT 的 $\sum c_j \exp(i \cdot (x_j \cdot s + y_j \cdot t))$ 形式。
+
+#### 集成方式
+
+- `pattern.af(method="auto")` — 自动决策：finufft 可用 + N ≥ 300 → NUFFT，否则直接计算
+- `pattern.af_nufft()` — 强制 NUFFT，支持多频多角度
+- `_nufft_1d()` / `_nufft_2d()` — 底层封装
+- Config.json 控制：`"optimizer": { "afMethod": "auto" | "direct" | "nufft" }`
+
+#### 基准测试参考
+
+详见 `scripts/bench_af.py` 和 `scripts/verify_nufft.py`。

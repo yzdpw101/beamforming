@@ -144,11 +144,29 @@ af = finufft.nufft2d3(xs, ys, c, ss, ts, eps=1e-6)
 
 **结论**：FINUFFT Type 3 在任意阵型（线/面、均匀/非均匀）下均可替代直接求和，精度无损（误差<0.001dB），加速 20-2700×。
 
+### 集成到 pattern.py
+
+**已完成 (2026-06-01)**：
+
+- [x] `pattern.af(method="auto")` — 自动选 NUFFT/直接
+- [x] `pattern.af_nufft()` — 强制 NUFFT，多频多角度自适应
+- [x] `_nufft_1d()` / `_nufft_2d()` — 底层 Type 3 封装
+- [x] `BeamformingProblem.af_method` — Config.json 控制
+- [x] `Config.json` 新增 `"optimizer": { "afMethod": "auto" }`
+- [x] 测试：66/66 通过，NUFFT vs 直接误差 < 0.0001dB
+
+**线阵 1D 公平对比（补充）：**
+
+| 元数 | linear_af | NUFFT 1D | 加速 |
+|---|---|---|---|
+| 500 | 0.003s | 0.009s | — |
+| 5000 | 0.026s | 0.0035s | 7.4× |
+
+小阵列（<300元）自动回落直接计算，无 NUFFT 开销。
+
 ### 待验证项
 
-- [ ] FINUFFT Plan 接口（Type 3 的 many 模式）——语法待查
-- [ ] 集成到 `pattern.py` 作为默认 AF 计算路径
-- [ ] 与 `planar_af_fft` 的全面精度对比
+- [ ] FINUFFT Plan 接口（Type 3 的 many 模式）
 - [ ] 极低精度（eps=1e-3）下是否可用于早期优化迭代
 
 ---
