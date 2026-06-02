@@ -76,6 +76,22 @@ class MGOM(BaseMapper):
         return self._Ly
 
     @property
+    def x0(self) -> float:
+        return self._x0
+
+    @property
+    def y0(self) -> float:
+        return self._y0
+
+    @property
+    def x1(self) -> float:
+        return self._x1
+
+    @property
+    def y1(self) -> float:
+        return self._y1
+
+    @property
     def Nq(self) -> int:
         return self._Nq
 
@@ -128,7 +144,8 @@ class MGOM(BaseMapper):
         if self._is_sym:
             # W: (max_cells-1,) 打分, 右下角固定=1
             n_w = self.max_cells - 1
-            W = x[:n_w]
+            W_full = np.ones(self.max_cells)
+            W_full[:n_w] = x[:n_w]
             idx = n_w
             # α: (Nq-1,) x偏移, 末尾固定=1
             alpha = np.empty(Nq)
@@ -152,9 +169,9 @@ class MGOM(BaseMapper):
             alpha[-4:] = [0, 1, 0, 1]
             beta[-4:]  = [0, 0, 1, 1]
 
-        # 选 top-Nq 高分单元
+        # 选 top-Nq 高分单元 (角点固定=1.0分)
         sel = np.zeros(self.max_cells, dtype=bool)
-        order = np.argsort(-W)  # 降序
+        order = np.argsort(-W_full)
         chosen = order[:Nq]
         sel[chosen] = True
 
@@ -206,10 +223,8 @@ class MGOM(BaseMapper):
                             X[ri, cj] = X[ri, cj - 1] + oX[ri, cj] * r + dmin
                             r *= (1.0 - oX[ri, cj])
                 else:
-                    n_in_block = ci_end - ci + 1
-                    x_block = (x0 + ci_end * dmin + dmin) - (x0 + ci * dmin)
-                    x_used = (n_in_block - 1) * dmin
-                    r = x_block - x_used
+                    # 内部块：每元素最多 dmin 偏移
+                    r = dmin
                     X[ri, ci] = x0 + ci * dmin + oX[ri, ci] * r
                     r *= (1.0 - oX[ri, ci])
                     for cj in range(ci + 1, ci_end + 1):
@@ -250,7 +265,8 @@ class MGOM(BaseMapper):
                                 dy_safe = dmin
                             ub = min(ub, Y[ri + 1, cj] - dy_safe)
 
-                Y[ri, ci] = y_low + oY[ri, ci] * max(0, ub - y_low)
+                y_target = y_low + oY[ri, ci] * max(0, ub - y_low)
+                Y[ri, ci] = float(np.clip(y_target, y_low, ub))
 
         # 提取选中单元坐标
         qx = X[sel]; qy = Y[sel]
