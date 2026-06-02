@@ -17,7 +17,7 @@ from .antenna import Element, ArrayGeometry, LinearArray, UniformLinearArray, Pl
 from .antenna import ElementPattern
 
 # ── mapping ──
-from .mapping import BaseMapper, LMMapper, PlanarMapper
+from .mapping import BaseMapper, LMMapper, PlanarMapper, MGOM
 
 # ── opt ──
 from .opt import (

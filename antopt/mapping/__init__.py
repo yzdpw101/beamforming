@@ -2,4 +2,4 @@
 
 from .base import BaseMapper
 from .linear import LMMapper
-from .planar import PlanarMapper
+from .planar import PlanarMapper, MGOM
