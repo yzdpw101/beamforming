@@ -316,6 +316,241 @@ class PlanarMapper(BaseMapper):
         active = self._collision_check(active)
         return self._grid_x[active].copy(), self._grid_y[active].copy()
 
+
+# ═══════════════════════════════════════════════════
+#  ITSM — 迭代两步映射法
+# ═══════════════════════════════════════════════════
+
+class ITSM(BaseMapper):
+    """迭代两步映射 (Iterative Two-Stage Mapping)。
+
+    λ → 每行阵元数, α → x偏移, β → y偏移, γ → 行权重。
+    """
+
+    def __init__(
+        self,
+        Ne: int,
+        Lx: float,
+        Ly: float,
+        dmin: float,
+        is_symmetric: bool = True,
+    ):
+        if Ne <= 0:
+            raise ValueError(f"Ne 必须为正, 实际 {Ne}")
+        if is_symmetric and Ne % 4 != 0:
+            raise ValueError(f"对称阵列 Ne 必须为 4 的倍数, 实际 {Ne}")
+        if Lx <= 0 or Ly <= 0:
+            raise ValueError(f"Lx/Ly 必须 > 0, 实际 Lx={Lx} Ly={Ly}")
+        if dmin <= 0:
+            raise ValueError(f"dmin 必须 > 0, 实际 {dmin}")
+
+        self._Lx, self._Ly, self._dmin = Lx, Ly, dmin
+        self._is_sym = is_symmetric
+
+        if is_symmetric:
+            self._x0, self._y0 = 0.5 * dmin, 0.5 * dmin
+            self._x1, self._y1 = Lx / 2.0, Ly / 2.0
+            self._Nq = Ne // 4
+        else:
+            self._x0, self._y0 = -Lx / 2.0, -Ly / 2.0
+            self._x1, self._y1 = Lx / 2.0, Ly / 2.0
+            self._Nq = Ne
+
+        self._Pm = int((self._y1 - self._y0) / dmin) + 1
+        self._Qm = int((self._x1 - self._x0) / dmin) + 1
+
+        # 变量维度
+        n_free = self._Nq - 1  # 角点固定
+        self._n_lambda = self._Pm - 1
+        self._n_alpha = n_free
+        self._n_beta = n_free
+        self._n_gamma = self._Pm
+
+        super().__init__(Ne=Ne, L=Lx, dmin=dmin,
+                          is_symmetric=is_symmetric, is_fixed_aperture=True)
+
+    # ── 属性 ──
+    @property
+    def Lx(self) -> float: return self._Lx
+    @property
+    def Ly(self) -> float: return self._Ly
+    @property
+    def x0(self) -> float: return self._x0
+    @property
+    def y0(self) -> float: return self._y0
+    @property
+    def x1(self) -> float: return self._x1
+    @property
+    def y1(self) -> float: return self._y1
+    @property
+    def Nq(self) -> int: return self._Nq
+    @property
+    def max_rows(self) -> int: return self._Pm
+    @property
+    def max_cols(self) -> int: return self._Qm
+    @property
+    def n_vars(self) -> int:
+        return self._n_lambda + self._n_alpha + self._n_beta + self._n_gamma
+
+    # ── 核心 ──
+    def synthesize(self, opt_vector: np.ndarray, expand_to_4q: bool = True) -> tuple:
+        x = np.asarray(opt_vector, dtype=float)
+        lam, alpha, beta, gamma = self._parse(x)
+        rows = self._alloc_rows(lam)
+        qx, qy = self._build(rows, alpha, beta, gamma)
+
+        if self._is_sym and expand_to_4q:
+            return self._expand(qx, qy)
+        return qx, qy
+
+    # ── 内部 ──
+    def _parse(self, x):
+        idx = 0
+        lam = x[idx:idx + self._n_lambda]; idx += self._n_lambda
+        alpha = x[idx:idx + self._n_alpha]; idx += self._n_alpha
+        beta = x[idx:idx + self._n_beta]; idx += self._n_beta
+        gamma = x[idx:idx + self._n_gamma]
+        return lam, alpha, beta, gamma
+
+    def _alloc_rows(self, lam):
+        """Bounded Composition Sum: lambda → 每行阵元数。
+
+        N = Nq-1 个自由阵元分配到 Pm 行，每行 [0, Qm]。
+        lambda ∈ [0,1]^(Pm-1) 依次确定每行分配量。
+        """
+        n_free = self._Nq - 1
+        Pm, Qm = self._Pm, self._Qm
+        lam = np.clip(np.asarray(lam, float), 0, 1)
+
+        counts = np.zeros(Pm, dtype=int)
+        remaining = n_free
+
+        for i in range(Pm - 1):
+            lo = 0
+            hi = min(Qm, remaining)
+            if lo >= hi:
+                counts[i] = lo
+                remaining -= lo
+                continue
+
+            # lambda[i] 按比例选 [lo, hi] 范围内的值
+            x = int(lo + np.round(lam[i] * (hi - lo)))
+            x = max(lo, min(hi, x))
+            counts[i] = x
+            remaining -= x
+            if remaining <= 0:
+                break
+
+        # 最后一行取剩余
+        counts[-1] = min(remaining, Qm)
+
+        # 如果最后一行太少，从前面匀
+        while counts[-1] < min(1, Qm) and counts.sum() < n_free:
+            for i in range(Pm - 1):
+                if counts[i] > 0:
+                    counts[i] -= 1
+                    counts[-1] += 1
+                    if counts[-1] >= min(1, Qm):
+                        break
+
+        return counts
+
+    def _build(self, rows, alpha, beta, gamma):
+        """构建第一象限坐标。"""
+        Pm, Qm, dmin = self._Pm, self._Qm, self._dmin
+        x0, y0, x1, y1 = self._x0, self._y0, self._x1, self._y1
+        total = rows.sum()
+        x, y = np.zeros(total), np.zeros(total)
+
+        # 每行起始索引
+        row_start = np.zeros(Pm + 1, dtype=int)
+        for ri in range(Pm):
+            row_start[ri + 1] = row_start[ri] + int(rows[ri])
+
+        a_idx, b_idx = 0, 0
+
+        # ── X 坐标 (比例分配) ──
+        for ri in range(Pm):
+            ne = int(rows[ri])
+            if ne == 0:
+                continue
+            idx0 = row_start[ri]
+            total_extra = (x1 - x0) - (ne - 1) * dmin  # 超出 dmin 的剩余空间
+            if total_extra < 0:
+                total_extra = 0
+
+            if ri == Pm - 1:
+                # 最后一行: 固定角点, 前 ne-1 个自由
+                nf = ne - 1
+                row_alpha = alpha[a_idx:a_idx + nf] if nf > 0 else np.array([])
+                row_alpha_sum = row_alpha.sum() or 1e-12
+                row_g = float(gamma[ri])
+                for ci in range(nf):
+                    delta = total_extra * row_alpha[ci] / row_alpha_sum * row_g
+                    x[idx0 + ci] = (x0 + delta if ci == 0
+                                    else x[idx0 + ci - 1] + dmin + delta)
+                x[idx0 + ne - 1] = x1  # 固定角点
+                a_idx += nf
+            else:
+                row_alpha = alpha[a_idx:a_idx + ne]
+                row_alpha_sum = row_alpha.sum() or 1e-12
+                row_g = float(gamma[ri])
+                for ci in range(ne):
+                    delta = total_extra * row_alpha[ci] / row_alpha_sum * row_g
+                    x[idx0 + ci] = (x0 + delta if ci == 0
+                                    else x[idx0 + ci - 1] + dmin + delta)
+                a_idx += ne
+
+        # ── Y 基坐标 ──
+        for ri in range(Pm):
+            ne = int(rows[ri])
+            if ne > 0:
+                y[row_start[ri]:row_start[ri] + ne] = y0 + ri * dmin
+
+        # ── Y 调整 (碰撞检测) ──
+        # 预计算每行 beta 起始索引 (从上到下)
+        b_start = np.zeros(Pm, dtype=int)
+        for ri in range(1, Pm):
+            b_start[ri] = b_start[ri - 1] + int(rows[ri - 1])
+
+        for ri in range(Pm - 2, -1, -1):
+            ne = int(rows[ri])
+            if ne == 0:
+                continue
+            y_base = y0 + ri * dmin
+            y_up = y0 + (ri + 1) * dmin
+            idx0 = row_start[ri]
+
+            for ci in range(ne):
+                ub = y_up
+                cur_x = x[idx0 + ci]
+                # 检查上一行所有元素的碰撞
+                for cj in range(int(rows[ri + 1])):
+                    other_x = x[row_start[ri + 1] + cj]
+                    other_y = y[row_start[ri + 1] + cj]
+                    dx = abs(cur_x - other_x)
+                    if dx < dmin:
+                        dy_safe = np.sqrt(max(0, dmin * dmin - dx * dx))
+                        ub = min(ub, other_y - dy_safe)
+
+                dy_avail = max(0, ub - y_base)
+                bi = b_start[ri] + ci
+                row_g = float(gamma[ri])
+                y_target = y_base + beta[bi] * dy_avail * row_g
+                y[idx0 + ci] = float(np.clip(y_target, y_base, ub))
+
+        return x, y
+
+    @staticmethod
+    def _expand(qx, qy):
+        Nq = len(qx)
+        x = np.empty(4 * Nq); y = np.empty(4 * Nq)
+        x[0*Nq:1*Nq] = qx;    y[0*Nq:1*Nq] = qy
+        x[1*Nq:2*Nq] = -qx;   y[1*Nq:2*Nq] = qy
+        x[2*Nq:3*Nq] = -qx;   y[2*Nq:3*Nq] = -qy
+        x[3*Nq:4*Nq] = qx;    y[3*Nq:4*Nq] = -qy
+        return x, y
+
     def _collision_check(self, active: np.ndarray) -> np.ndarray:
         active_2d = active.reshape(self._Ny, self._Nx)
         for i in range(self._Ny):
