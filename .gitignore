@@ -26,6 +26,9 @@ htmlcov/
 .omo/
 .codewhale/
 
+# Test artifacts
+*_test.png
+
 # Results (runtime output)
 results/
 input/
