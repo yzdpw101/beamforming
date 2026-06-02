@@ -182,25 +182,23 @@ class MGOM(BaseMapper):
                     k += 1
 
         # ── Step 1: X 坐标 ──
-        x_rem = x1 - x0 - (Qm - 1) * dmin  # 最后一列剩余空间
+        x_rem = x1 - x0 - (Qm - 1) * dmin
         for ri in range(Pm):
-            for ci in range(Qm):
+            ci = 0
+            while ci < Qm:
                 if not sel[ri, ci]:
+                    ci += 1
                     continue
-                # 找同行右侧相邻选中单元
                 ci_end = ci
                 while ci_end < Qm - 1 and sel[ri, ci_end + 1]:
                     ci_end += 1
 
                 if ci_end == Qm - 1:
-                    # 延伸到最后列
                     if x_rem < 1e-12:
-                        # 无剩余空间，均匀放置
                         X[ri, ci] = x0 + ci * dmin
                         for cj in range(ci + 1, Qm):
                             X[ri, cj] = X[ri, cj - 1] + dmin
                     else:
-                        # 有剩余空间，用偏移分配
                         r = x_rem
                         X[ri, ci] = x0 + ci * dmin + oX[ri, ci] * r
                         r *= (1.0 - oX[ri, ci])
@@ -208,9 +206,8 @@ class MGOM(BaseMapper):
                             X[ri, cj] = X[ri, cj - 1] + oX[ri, cj] * r + dmin
                             r *= (1.0 - oX[ri, cj])
                 else:
-                    # 未延伸到边缘，块内分配
                     n_in_block = ci_end - ci + 1
-                    x_block = x0 + ci_end * dmin + dmin - (x0 + ci * dmin)
+                    x_block = (x0 + ci_end * dmin + dmin) - (x0 + ci * dmin)
                     x_used = (n_in_block - 1) * dmin
                     r = x_block - x_used
                     X[ri, ci] = x0 + ci * dmin + oX[ri, ci] * r
@@ -219,7 +216,7 @@ class MGOM(BaseMapper):
                         X[ri, cj] = X[ri, cj - 1] + oX[ri, cj] * r + dmin
                         r *= (1.0 - oX[ri, cj])
 
-                ci = ci_end  # 跳过已处理的块
+                ci = ci_end + 1
 
         # ── Step 2: Y 坐标 ──
         y_rem = y1 - y0 - (Pm - 1) * dmin
